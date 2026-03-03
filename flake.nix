@@ -17,32 +17,25 @@
             version = "0.1.1";
             src = ./.;
 
-            nativeBuildInputs = [ pkgs.bun ];
+            nativeBuildInputs = [ pkgs.bun pkgs.makeWrapper ];
 
             buildPhase = ''
               runHook preBuild
               export HOME=$TMPDIR
               bun install --frozen-lockfile
-
-              case "${pkgs.stdenv.hostPlatform.system}" in
-                x86_64-linux) target="bun-linux-x64-modern" ;;
-                aarch64-linux) target="bun-linux-arm64" ;;
-                aarch64-darwin) target="bun-darwin-arm64" ;;
-                x86_64-darwin) target="bun-darwin-x64" ;;
-                *)
-                  echo "Unsupported system: ${pkgs.stdenv.hostPlatform.system}" >&2
-                  exit 1
-                  ;;
-              esac
-
-              mkdir -p bin
-              bun build src/cli.ts --compile --target "$target" --outfile bin/git-ai-commit
+              bun run build
               runHook postBuild
             '';
 
             installPhase = ''
               runHook preInstall
-              install -Dm755 bin/git-ai-commit $out/bin/git-ai-commit
+              mkdir -p $out/lib/git-ai-commit $out/bin
+              cp -R dist node_modules package.json bun.lock $out/lib/git-ai-commit/
+
+              makeWrapper ${pkgs.nodejs_22}/bin/node $out/bin/git-ai-commit \
+                --set NODE_PATH "$out/lib/git-ai-commit/node_modules" \
+                --prefix PATH : "$out/lib/git-ai-commit/node_modules/.bin" \
+                --add-flags "$out/lib/git-ai-commit/dist/cli.js"
               runHook postInstall
             '';
           };

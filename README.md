@@ -150,17 +150,19 @@ iwr https://raw.githubusercontent.com/bot-uichan/git-ai-commit/main/scripts/inst
 
 > 注意: 環境によっては `codex` 解決が必要になるため、問題時は `CODEX_BIN` を併用してください。
 
-### Nix
+### Nix（Codex同梱ラッパーで実行）
 
 ```bash
-nix run github:bot-uichan/git-ai-commit
+nix run 'github:bot-uichan/git-ai-commit?ref=main'
 ```
 
 固定バージョン:
 
 ```bash
-nix run github:bot-uichan/git-ai-commit?ref=v0.1.6
+nix run 'github:bot-uichan/git-ai-commit?ref=v0.1.6'
 ```
+
+> zsh は `?` を展開するので、URLはクォートしてください。
 
 ---
 
