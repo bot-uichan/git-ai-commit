@@ -43,6 +43,7 @@ git-ai-commit --regenerate
 ## GitHub Release（自動ビルド）
 
 `v*` タグをpushすると GitHub Actions が自動でバイナリを作成し、Release に添付します。
+また `workflow_dispatch` から `release_tag`（例: `v0.1.4`）を指定して手動リリースも可能です。
 
 - `git-ai-commit-linux-x64`
 - `git-ai-commit-darwin-arm64`
