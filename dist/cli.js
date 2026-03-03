@@ -122,7 +122,7 @@ async function main() {
     const rl = createInterface({ input, output });
     try {
         while (true) {
-            console.log(":robot: Generating commit message with Codex...\n");
+            console.log("🤖 Generating commit message with Codex...\n");
             const message = await generateMessage(diff, lang, model);
             console.log(`  ${message}\n`);
             const prompt = cliOptions.regenerate
