@@ -29,7 +29,7 @@ jobs:
           - os: macos-latest
             target: bun-darwin-arm64
             asset: git-ai-commit-darwin-arm64
-          - os: macos-13
+          - os: macos-latest
             target: bun-darwin-x64
             asset: git-ai-commit-darwin-x64
           - os: windows-latest
@@ -37,6 +37,9 @@ jobs:
             asset: git-ai-commit-windows-x64.exe
 
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
