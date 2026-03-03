@@ -187,6 +187,7 @@ function parseArgs(argv) {
                 "  COMMIT_PROMPT          custom prompt template text",
                 "  COMMIT_PROMPT_FILE     path to custom prompt template file",
                 "  COMMIT_MAX_DIFF_CHARS  max diff characters before truncation (default: 50000)",
+                "  CODEX_BIN              absolute path to codex binary (optional override)",
             ].join("\n"));
             process.exit(0);
         }
@@ -216,8 +217,23 @@ function parseArgs(argv) {
     }
     return options;
 }
-async function generateMessage(diff, lang, model, customPrompt) {
-    const codex = new Codex();
+function resolveCodexPath() {
+    if (process.env.CODEX_BIN?.trim()) {
+        return process.env.CODEX_BIN.trim();
+    }
+    const finder = process.platform === "win32" ? "where" : "which";
+    const result = spawnSync(finder, ["codex"], { encoding: "utf8" });
+    if (result.status !== 0) {
+        return undefined;
+    }
+    const firstPath = result.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0);
+    return firstPath;
+}
+async function generateMessage(diff, lang, model, customPrompt, codexPath) {
+    const codex = new Codex(codexPath ? { codexPathOverride: codexPath } : undefined);
     const thread = codex.startThread(model ? { model } : undefined);
     const turn = await thread.run(buildPrompt(diff, lang, customPrompt));
     const message = sanitizeMessage(turn.finalResponse ?? "");
@@ -238,6 +254,7 @@ async function main() {
     }
     const lang = ((process.env.COMMIT_LANG || "en").toLowerCase() === "ja" ? "ja" : "en");
     const model = cliOptions.model ?? process.env.COMMIT_MODEL ?? "gpt-5.1-codex-mini";
+    const codexPath = resolveCodexPath();
     const envPrompt = process.env.COMMIT_PROMPT;
     const envPromptFile = process.env.COMMIT_PROMPT_FILE;
     if (envPrompt && envPromptFile) {
@@ -292,6 +309,7 @@ async function main() {
         console.log(`ℹ️ model=${model}`);
         console.log(`ℹ️ lang=${lang}`);
         console.log(`ℹ️ promptSource=${promptSource}`);
+        console.log(`ℹ️ codexPath=${codexPath ?? "(sdk default resolution)"}`);
     }
     let diff;
     try {
@@ -315,7 +333,7 @@ async function main() {
     try {
         while (true) {
             console.log("🤖 Generating commit message with Codex...\n");
-            const message = await generateMessage(diff, lang, model, customPrompt);
+            const message = await generateMessage(diff, lang, model, customPrompt, codexPath);
             console.log(`  ${message}\n`);
             const prompt = cliOptions.regenerate
                 ? "Commit with this message? (y/n/r): "

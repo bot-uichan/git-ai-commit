@@ -200,6 +200,12 @@ COMMIT_MODEL=gpt-5-mini git-ai-commit
 
 `--model` が優先されます。
 
+`codex` の場所解決で問題がある場合は `CODEX_BIN` で明示できます。
+
+```bash
+CODEX_BIN="$(which codex)" git-ai-commit
+```
+
 ---
 
 ## Large diff handling
