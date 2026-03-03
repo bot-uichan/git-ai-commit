@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 import { Codex } from "@openai/codex-sdk";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";

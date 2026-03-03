@@ -1,52 +1,67 @@
 # git-ai-commit
 
-`git diff --staged` を Codex CLI SDK（`@openai/codex-sdk`）で要約し、Conventional Commits 形式の1行メッセージを提案してからコミットする TypeScript CLI です。
+`git diff --staged` を Codex CLI SDK（`@openai/codex-sdk`）で解析し、
+Conventional Commits 形式の1行メッセージを提案してからコミットするCLIです。
 
 ## Requirements
 
 - Node.js 20+（または Bun）
 - `codex login` 済み
 
-## Install
+---
+
+## Global install（おすすめ）
+
+### npm（GitHub repo から直接）
 
 ```bash
-npm install
-# or
-bun install
+npm i -g github:bot-uichan/git-ai-commit
 ```
 
-## Run
+### Bun
+
+```bash
+bun add -g github:bot-uichan/git-ai-commit
+```
+
+インストール後:
+
+```bash
+git-ai-commit --regenerate
+```
+
+---
+
+## Local development
+
+```bash
+git clone https://github.com/bot-uichan/git-ai-commit.git
+cd git-ai-commit
+npm install
+npm run check
+npm run build
+```
+
+開発実行:
 
 ```bash
 npx tsx src/cli.ts
 ```
 
-`--regenerate` を付けると、確認時に `r` で何度でも再生成できます。
-
-```bash
-npx tsx src/cli.ts --regenerate
-```
+---
 
 ## Language switch
 
-コミット文の言語は環境変数 `COMMIT_LANG` で切り替えます。
+環境変数 `COMMIT_LANG` で切り替えます。
 
 - `COMMIT_LANG=en` (default)
 - `COMMIT_LANG=ja`
 
-例:
-
 ```bash
-COMMIT_LANG=ja npx tsx src/cli.ts
+COMMIT_LANG=ja git-ai-commit
 ```
 
-## Expected flow
-
-1. `git diff --staged` を取得
-2. Codex SDK で1行コミット文を生成
-3. ターミナル表示
-4. `y` で `git commit -m "..."` 実行
-5. `n` でキャンセル（ステージングは維持）
+---
 
 ## Output example
 
@@ -58,50 +73,29 @@ COMMIT_LANG=ja npx tsx src/cli.ts
 Commit with this message? (y/n):
 ```
 
-## Git alias で `git commit` から呼ぶ
+`--regenerate` を付けると確認時に `r` で再生成できます。
 
-`git commit` をこのツールに置き換えるには、シェル関数 alias を使うのが安全です（再帰回避のため）。
+---
 
-```bash
-git config --global alias.commit '!f() { npx tsx /ABSOLUTE/PATH/to/git-ai-commit/src/cli.ts "$@"; }; f'
-```
+## Git subcommand として使う（`git commit` は上書きしない）
 
-`--regenerate` をデフォルトで有効にしたい場合:
+`git commit` の上書きは事故りやすいので、独自サブコマンドを推奨します。
 
 ```bash
-git config --global alias.commit '!f() { npx tsx /ABSOLUTE/PATH/to/git-ai-commit/src/cli.ts --regenerate "$@"; }; f'
+git config --global alias.aic '!git-ai-commit'
 ```
 
-> `/ABSOLUTE/PATH/to/...` は実際の絶対パスに置き換えてください。
-
-## `prepare-commit-msg` hook を使う方法（代替）
-
-`.git/hooks/prepare-commit-msg` を作成して実行権限を付与します。
+これで:
 
 ```bash
-cat > .git/hooks/prepare-commit-msg <<'HOOK'
-#!/usr/bin/env bash
-set -euo pipefail
-
-MSG_FILE="$1"
-SOURCE="${2:-}"
-
-# merge/squash など自動生成メッセージは触らない
-if [[ "$SOURCE" == "merge" || "$SOURCE" == "squash" || "$SOURCE" == "commit" ]]; then
-  exit 0
-fi
-
-# すでにメッセージがあるなら尊重
-if [[ -s "$MSG_FILE" ]]; then
-  exit 0
-fi
-
-COMMIT_MSG=$(npx tsx /ABSOLUTE/PATH/to/git-ai-commit/src/cli.ts --regenerate <<<'n' 2>/dev/null || true)
-# NOTE: 上記は対話型CLIのため、hook運用時は非対話版を別途作るのが推奨。
-HOOK
-
-chmod +x .git/hooks/prepare-commit-msg
+git aic
 ```
 
-> このCLIは確認プロンプト付きの対話型です。hookで本格運用する場合は、
-> 「生成のみして stdout に出す非対話モード（例: `--print-only`）」を追加すると運用しやすくなります。
+で実行できます。
+
+---
+
+## `prepare-commit-msg` hook（代替案）
+
+このCLIは対話型（確認プロンプトあり）なので、hook運用には非対話モード追加が理想です。
+現状は `git aic` / `git-ai-commit` の手動実行を推奨します。
