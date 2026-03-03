@@ -40,6 +40,21 @@ git-ai-commit --regenerate
 
 ---
 
+## GitHub Release（自動ビルド）
+
+`v*` タグをpushすると GitHub Actions が自動でバイナリを作成し、Release に添付します。
+
+- `git-ai-commit-linux-x64`
+- `git-ai-commit-darwin-arm64`
+- 各 `.sha256`
+
+リリース作成例:
+
+```bash
+git tag v0.1.2
+git push origin v0.1.2
+```
+
 ## Nix flake package
 
 `flake.nix` の outputs に `packages.<system>.git-ai-commit` を追加済みです。
