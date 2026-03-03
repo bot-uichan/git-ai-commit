@@ -147,7 +147,7 @@ git-ai-commit --regenerate
 git-ai-commit -- --amend --no-verify
 ```
 
-> `-m/--message/-F/--file` はこのCLI側で管理するため、`--` の後ろには渡せません。
+> `-m/--message/-F/--file`（`--message=...` / `-mfoo` 形式も含む）はこのCLI側で管理するため、`--` の後ろには渡せません。
 
 ---
 
