@@ -123,6 +123,34 @@ COMMIT_MODEL=gpt-5-mini git-ai-commit
 
 ---
 
+## Prompt customization
+
+プロンプトは次の方法で上書きできます。
+
+- `--prompt "..."`（直接指定）
+- `--prompt-file ./prompt.txt`（ファイル指定）
+- `COMMIT_PROMPT`（環境変数）
+- `COMMIT_PROMPT_FILE`（環境変数）
+
+プレースホルダー:
+
+- `{{LANG}}` → `en` / `ja`
+- `{{DIFF}}` → `git diff --staged` の出力
+
+例:
+
+```bash
+git-ai-commit --prompt 'You are commit expert. Return one Conventional Commit line in {{LANG}} only. Diff:\n{{DIFF}}'
+```
+
+```bash
+git-ai-commit --prompt-file .git-ai-commit-prompt.txt
+```
+
+`--prompt` / `--prompt-file` が環境変数より優先されます。
+
+---
+
 ## Git subcommand として使う（`git commit` は上書きしない）
 
 `git commit` の上書きは事故りやすいので、独自サブコマンドを推奨します。
