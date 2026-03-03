@@ -24,6 +24,14 @@ npm i -g github:bot-uichan/git-ai-commit
 bun add -g github:bot-uichan/git-ai-commit
 ```
 
+### Bunで単体バイナリを作る
+
+```bash
+bun install
+bun run build:bun-bin
+./bin/git-ai-commit --help
+```
+
 インストール後:
 
 ```bash
@@ -31,6 +39,18 @@ git-ai-commit --regenerate
 ```
 
 ---
+
+## Nix flake package
+
+`flake.nix` の outputs に `packages.<system>.git-ai-commit` を追加済みです。
+
+```bash
+# build
+nix build .#git-ai-commit
+
+# run
+./result/bin/git-ai-commit --help
+```
 
 ## Local development
 
