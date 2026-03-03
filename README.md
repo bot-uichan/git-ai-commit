@@ -141,6 +141,14 @@ Commit with this message? (y/n):
 git-ai-commit --regenerate
 ```
 
+`git commit` のオプションを透過で渡したいときは `--` 以降に指定します。
+
+```bash
+git-ai-commit -- --amend --no-verify
+```
+
+> `-m/--message/-F/--file` はこのCLI側で管理するため、`--` の後ろには渡せません。
+
 ---
 
 ## Model selection
