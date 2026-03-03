@@ -12,8 +12,15 @@ function runGit(args) {
     }
     return result.stdout;
 }
+function ensureGitWorkTree() {
+    const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
+    return result.status === 0 && result.stdout.trim() === "true";
+}
 function getStagedDiff() {
-    return runGit(["diff", "--staged", "--no-color"]);
+    if (!ensureGitWorkTree()) {
+        throw new Error("Not a git repository. Move into a repository first.");
+    }
+    return runGit(["diff", "--cached", "--no-color"]);
 }
 function limitDiff(diff, maxChars) {
     if (diff.length <= maxChars) {
