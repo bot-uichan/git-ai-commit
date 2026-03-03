@@ -22,7 +22,7 @@
             buildPhase = ''
               runHook preBuild
               export HOME=$TMPDIR
-              bun install --frozen-lockfile
+              bun install
               bun run build:bun-bin
               runHook postBuild
             '';
