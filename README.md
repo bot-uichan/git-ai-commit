@@ -185,6 +185,15 @@ COMMIT_MAX_DIFF_CHARS=80000 git-ai-commit
 - `COMMIT_PROMPT`（環境変数）
 - `COMMIT_PROMPT_FILE`（環境変数）
 
+優先順位:
+
+1. `--prompt`
+2. `--prompt-file`
+3. `COMMIT_PROMPT`
+4. `COMMIT_PROMPT_FILE`
+
+衝突時は警告を表示します。
+
 プレースホルダー:
 
 - `{{LANG}}` → `en` / `ja`
@@ -201,6 +210,12 @@ git-ai-commit --prompt-file .git-ai-commit-prompt.txt
 ```
 
 `--prompt` / `--prompt-file` が環境変数より優先されます。
+
+現在採用された設定の確認:
+
+```bash
+git-ai-commit --verbose
+```
 
 ---
 
