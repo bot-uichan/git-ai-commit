@@ -63,16 +63,25 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 echo "⬇️  Downloading ${asset}..."
-curl -fL "$asset_url" -o "$tmpdir/git-ai-commit"
-curl -fL "$checksum_url" -o "$tmpdir/git-ai-commit.sha256"
+curl -fL "$asset_url" -o "$tmpdir/$asset"
+curl -fL "$checksum_url" -o "$tmpdir/$asset.sha256"
 
 (
   cd "$tmpdir"
-  sha256sum -c git-ai-commit.sha256
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$asset.sha256"
+  else
+    expected="$(awk '{print $1}' "$asset.sha256")"
+    actual="$(shasum -a 256 "$asset" | awk '{print $1}')"
+    if [[ "$expected" != "$actual" ]]; then
+      echo "Checksum mismatch: expected $expected actual $actual" >&2
+      exit 1
+    fi
+  fi
 )
 
 mkdir -p "$INSTALL_DIR"
-install -m 755 "$tmpdir/git-ai-commit" "$INSTALL_DIR/git-ai-commit"
+install -m 755 "$tmpdir/$asset" "$INSTALL_DIR/git-ai-commit"
 
 echo "✅ Installed to: $INSTALL_DIR/git-ai-commit"
 if ! command -v git-ai-commit >/dev/null 2>&1; then
