@@ -97,6 +97,7 @@ function parseArgs(argv: string[]): CliOptions {
         "Env:",
         "  COMMIT_LANG       en|ja (default: en)",
         "  COMMIT_MODEL      default model if --model is not provided",
+        "                    fallback default: gpt-5.1-codex-mini", 
       ].join("\n"));
       process.exit(0);
     }
@@ -131,7 +132,7 @@ async function main() {
   }
 
   const lang = ((process.env.COMMIT_LANG || "en").toLowerCase() === "ja" ? "ja" : "en") as Lang;
-  const model = cliOptions.model ?? process.env.COMMIT_MODEL;
+  const model = cliOptions.model ?? process.env.COMMIT_MODEL ?? "gpt-5.1-codex-mini";
 
   let diff: string;
   try {

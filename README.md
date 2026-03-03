@@ -111,6 +111,7 @@ git-ai-commit --regenerate
 ## Model selection
 
 Codexモデルは `--model` または環境変数 `COMMIT_MODEL` で指定できます。
+デフォルトは `gpt-5.1-codex-mini` です。
 
 ```bash
 git-ai-commit --model gpt-5
