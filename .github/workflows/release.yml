@@ -23,9 +23,18 @@ jobs:
           - os: ubuntu-latest
             target: bun-linux-x64-modern
             asset: git-ai-commit-linux-x64
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            asset: git-ai-commit-linux-arm64
           - os: macos-latest
             target: bun-darwin-arm64
             asset: git-ai-commit-darwin-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            asset: git-ai-commit-darwin-x64
+          - os: windows-latest
+            target: bun-windows-x64
+            asset: git-ai-commit-windows-x64.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -48,8 +57,14 @@ jobs:
 
       - name: Generate checksum
         run: |
-          cd release
-          shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          asset = Path("release/${{ matrix.asset }}")
+          digest = hashlib.sha256(asset.read_bytes()).hexdigest()
+          Path(f"{asset}.sha256").write_text(f"{digest}  {asset.name}\n", encoding="utf-8")
+          PY
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
