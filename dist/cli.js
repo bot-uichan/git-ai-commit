@@ -60,7 +60,7 @@ function buildPrompt(diff, lang, customPrompt) {
     ].join("\n");
 }
 function parseArgs(argv) {
-    const options = { regenerate: false, commitArgs: [] };
+    const options = { regenerate: false, verbose: false, commitArgs: [] };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
         if (arg === "--") {
@@ -88,6 +88,10 @@ function parseArgs(argv) {
         }
         if (arg === "--regenerate") {
             options.regenerate = true;
+            continue;
+        }
+        if (arg === "--verbose") {
+            options.verbose = true;
             continue;
         }
         if (arg === "--model") {
@@ -146,10 +150,11 @@ function parseArgs(argv) {
                 "git-ai-commit",
                 "",
                 "Usage:",
-                "  git-ai-commit [--regenerate] [--model <name>] [--prompt <text>|--prompt-file <path>] [-- <git commit args...>]",
+                "  git-ai-commit [--regenerate] [--verbose] [--model <name>] [--prompt <text>|--prompt-file <path>] [-- <git commit args...>]",
                 "",
                 "Options:",
                 "  --regenerate      Enable 'r' to regenerate message at confirmation prompt.",
+                "  --verbose         Print resolved runtime settings.",
                 "  --model <name>        Codex model override (e.g. gpt-5, gpt-5-mini).",
                 "  --prompt <text>       Custom full prompt template.",
                 "  --prompt-file <path>      Load custom prompt template from file.",
@@ -203,7 +208,17 @@ async function main() {
     }
     const lang = ((process.env.COMMIT_LANG || "en").toLowerCase() === "ja" ? "ja" : "en");
     const model = cliOptions.model ?? process.env.COMMIT_MODEL ?? "gpt-5.1-codex-mini";
-    const promptFile = cliOptions.promptFile ?? process.env.COMMIT_PROMPT_FILE;
+    const envPrompt = process.env.COMMIT_PROMPT;
+    const envPromptFile = process.env.COMMIT_PROMPT_FILE;
+    if (envPrompt && envPromptFile) {
+        console.warn("⚠️ Both COMMIT_PROMPT and COMMIT_PROMPT_FILE are set. COMMIT_PROMPT is preferred.");
+    }
+    if (cliOptions.prompt && (cliOptions.promptFile || envPromptFile)) {
+        console.warn("⚠️ --prompt is set, so prompt file settings are ignored.");
+    }
+    if (cliOptions.promptFile && envPrompt) {
+        console.warn("⚠️ --prompt-file is set, so COMMIT_PROMPT is ignored.");
+    }
     const envMaxDiffCharsRaw = process.env.COMMIT_MAX_DIFF_CHARS;
     const envMaxDiffChars = envMaxDiffCharsRaw ? Number(envMaxDiffCharsRaw) : undefined;
     if (envMaxDiffCharsRaw && (!envMaxDiffChars || Number.isNaN(envMaxDiffChars) || envMaxDiffChars <= 0)) {
@@ -211,16 +226,42 @@ async function main() {
         process.exit(1);
     }
     const maxDiffChars = cliOptions.maxDiffChars ?? envMaxDiffChars ?? 50000;
-    let customPrompt = cliOptions.prompt ?? process.env.COMMIT_PROMPT;
-    if (!customPrompt && promptFile) {
+    let promptSource = "default";
+    let customPrompt;
+    if (cliOptions.prompt) {
+        customPrompt = cliOptions.prompt;
+        promptSource = "--prompt";
+    }
+    else if (cliOptions.promptFile) {
         try {
-            customPrompt = readFileSync(promptFile, "utf8");
+            customPrompt = readFileSync(cliOptions.promptFile, "utf8");
+            promptSource = "--prompt-file";
         }
         catch (error) {
             console.error("❌ Failed to read prompt file:");
             console.error(error instanceof Error ? error.message : String(error));
             process.exit(1);
         }
+    }
+    else if (envPrompt) {
+        customPrompt = envPrompt;
+        promptSource = "COMMIT_PROMPT";
+    }
+    else if (envPromptFile) {
+        try {
+            customPrompt = readFileSync(envPromptFile, "utf8");
+            promptSource = "COMMIT_PROMPT_FILE";
+        }
+        catch (error) {
+            console.error("❌ Failed to read prompt file:");
+            console.error(error instanceof Error ? error.message : String(error));
+            process.exit(1);
+        }
+    }
+    if (cliOptions.verbose) {
+        console.log(`ℹ️ model=${model}`);
+        console.log(`ℹ️ lang=${lang}`);
+        console.log(`ℹ️ promptSource=${promptSource}`);
     }
     let diff;
     try {
