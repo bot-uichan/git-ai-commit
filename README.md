@@ -166,6 +166,16 @@ COMMIT_MODEL=gpt-5-mini git-ai-commit
 
 ---
 
+## Large diff handling
+
+大きな差分はデフォルトで `50000` 文字までに自動トリミングしてからCodexへ送信します。
+
+```bash
+git-ai-commit --max-diff-chars 80000
+# or
+COMMIT_MAX_DIFF_CHARS=80000 git-ai-commit
+```
+
 ## Prompt customization
 
 プロンプトは次の方法で上書きできます。

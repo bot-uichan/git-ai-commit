@@ -13,6 +13,7 @@ type CliOptions = {
   prompt?: string;
   promptFile?: string;
   commitArgs: string[];
+  maxDiffChars?: number;
 };
 
 function runGit(args: string[]) {
@@ -26,6 +27,24 @@ function runGit(args: string[]) {
 
 function getStagedDiff() {
   return runGit(["diff", "--staged", "--no-color"]);
+}
+
+function limitDiff(diff: string, maxChars: number) {
+  if (diff.length <= maxChars) {
+    return { diff, truncated: false, omittedChars: 0 };
+  }
+
+  const headSize = Math.max(1, Math.floor(maxChars * 0.6));
+  const tailSize = Math.max(1, maxChars - headSize);
+  const head = diff.slice(0, headSize);
+  const tail = diff.slice(-tailSize);
+  const omittedChars = diff.length - (head.length + tail.length);
+
+  return {
+    diff: `${head}\n\n... [TRUNCATED ${omittedChars} chars] ...\n\n${tail}`,
+    truncated: true,
+    omittedChars,
+  };
 }
 
 function sanitizeMessage(raw: string) {
@@ -72,6 +91,27 @@ function parseArgs(argv: string[]): CliOptions {
     if (arg === "--") {
       options.commitArgs = argv.slice(i + 1);
       break;
+    }
+
+    if (arg === "--max-diff-chars") {
+      const value = argv[i + 1];
+      const parsed = Number(value);
+      if (!value || Number.isNaN(parsed) || parsed <= 0) {
+        throw new Error("--max-diff-chars requires a positive number.");
+      }
+      options.maxDiffChars = parsed;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--max-diff-chars=")) {
+      const rawValue = arg.split("=", 2)[1]?.trim();
+      const parsed = Number(rawValue);
+      if (!rawValue || Number.isNaN(parsed) || parsed <= 0) {
+        throw new Error("--max-diff-chars requires a positive number.");
+      }
+      options.maxDiffChars = parsed;
+      continue;
     }
 
     if (arg === "--regenerate") {
@@ -147,7 +187,8 @@ function parseArgs(argv: string[]): CliOptions {
         "  --regenerate      Enable 'r' to regenerate message at confirmation prompt.",
         "  --model <name>        Codex model override (e.g. gpt-5, gpt-5-mini).",
         "  --prompt <text>       Custom full prompt template.",
-        "  --prompt-file <path>  Load custom prompt template from file.",
+        "  --prompt-file <path>      Load custom prompt template from file.",
+        "  --max-diff-chars <n>      Trim very large staged diffs before Codex call.",
         "  --                    Pass following args through to git commit.",
         "",
         "Prompt template placeholders:",
@@ -158,8 +199,9 @@ function parseArgs(argv: string[]): CliOptions {
         "  COMMIT_LANG          en|ja (default: en)",
         "  COMMIT_MODEL         default model if --model is not provided",
         "                       fallback default: gpt-5.1-codex-mini",
-        "  COMMIT_PROMPT        custom prompt template text",
-        "  COMMIT_PROMPT_FILE   path to custom prompt template file", 
+        "  COMMIT_PROMPT          custom prompt template text",
+        "  COMMIT_PROMPT_FILE     path to custom prompt template file",
+        "  COMMIT_MAX_DIFF_CHARS  max diff characters before truncation (default: 50000)", 
       ].join("\n"));
       process.exit(0);
     }
@@ -211,6 +253,14 @@ async function main() {
   const model = cliOptions.model ?? process.env.COMMIT_MODEL ?? "gpt-5.1-codex-mini";
   const promptFile = cliOptions.promptFile ?? process.env.COMMIT_PROMPT_FILE;
 
+  const envMaxDiffCharsRaw = process.env.COMMIT_MAX_DIFF_CHARS;
+  const envMaxDiffChars = envMaxDiffCharsRaw ? Number(envMaxDiffCharsRaw) : undefined;
+  if (envMaxDiffCharsRaw && (!envMaxDiffChars || Number.isNaN(envMaxDiffChars) || envMaxDiffChars <= 0)) {
+    console.error("❌ COMMIT_MAX_DIFF_CHARS must be a positive number.");
+    process.exit(1);
+  }
+  const maxDiffChars = cliOptions.maxDiffChars ?? envMaxDiffChars ?? 50000;
+
   let customPrompt = cliOptions.prompt ?? process.env.COMMIT_PROMPT;
   if (!customPrompt && promptFile) {
     try {
@@ -235,6 +285,12 @@ async function main() {
     console.error("❌ No staged changes found. Stage files first (git add ...) and try again.");
     process.exit(1);
   }
+
+  const limited = limitDiff(diff, maxDiffChars);
+  if (limited.truncated) {
+    console.warn(`⚠️ Large diff detected. Truncated ${limited.omittedChars} chars before sending to Codex.`);
+  }
+  diff = limited.diff;
 
   const rl = createInterface({ input, output });
 
