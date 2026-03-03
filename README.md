@@ -57,8 +57,35 @@ npx tsx src/cli.ts
 - `COMMIT_LANG=en` (default)
 - `COMMIT_LANG=ja`
 
+一時指定（そのコマンド実行時のみ）:
+
 ```bash
 COMMIT_LANG=ja git-ai-commit
+```
+
+永続設定（シェルごと）:
+
+### bash
+
+```bash
+echo 'export COMMIT_LANG=ja' >> ~/.bashrc
+echo 'export COMMIT_MODEL=gpt-5-mini' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### zsh
+
+```bash
+echo 'export COMMIT_LANG=ja' >> ~/.zshrc
+echo 'export COMMIT_MODEL=gpt-5-mini' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### fish
+
+```fish
+set -Ux COMMIT_LANG ja
+set -Ux COMMIT_MODEL gpt-5-mini
 ```
 
 ---
