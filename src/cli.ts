@@ -6,6 +6,11 @@ import { stdin as input, stdout as output } from "node:process";
 
 type Lang = "ja" | "en";
 
+type CliOptions = {
+  regenerate: boolean;
+  model?: string;
+};
+
 function runGit(args: string[]) {
   const result = spawnSync("git", args, { encoding: "utf8" });
   if (result.status !== 0) {
@@ -48,9 +53,63 @@ function buildPrompt(diff: string, lang: Lang) {
   ].join("\n");
 }
 
-async function generateMessage(diff: string, lang: Lang): Promise<string> {
+function parseArgs(argv: string[]): CliOptions {
+  const options: CliOptions = { regenerate: false };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+
+    if (arg === "--regenerate") {
+      options.regenerate = true;
+      continue;
+    }
+
+    if (arg === "--model") {
+      const model = argv[i + 1];
+      if (!model || model.startsWith("-")) {
+        throw new Error("--model requires a value.");
+      }
+      options.model = model;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--model=")) {
+      const model = arg.split("=", 2)[1]?.trim();
+      if (!model) {
+        throw new Error("--model requires a value.");
+      }
+      options.model = model;
+      continue;
+    }
+
+    if (arg === "-h" || arg === "--help") {
+      console.log([
+        "git-ai-commit",
+        "",
+        "Usage:",
+        "  git-ai-commit [--regenerate] [--model <name>]",
+        "",
+        "Options:",
+        "  --regenerate      Enable 'r' to regenerate message at confirmation prompt.",
+        "  --model <name>    Codex model override (e.g. gpt-5, gpt-5-mini).",
+        "",
+        "Env:",
+        "  COMMIT_LANG       en|ja (default: en)",
+        "  COMMIT_MODEL      default model if --model is not provided",
+      ].join("\n"));
+      process.exit(0);
+    }
+
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  return options;
+}
+
+async function generateMessage(diff: string, lang: Lang, model?: string): Promise<string> {
   const codex = new Codex();
-  const thread = codex.startThread();
+  const thread = codex.startThread(model ? { model } : undefined);
   const turn = await thread.run(buildPrompt(diff, lang));
   const message = sanitizeMessage(turn.finalResponse ?? "");
 
@@ -62,8 +121,17 @@ async function generateMessage(diff: string, lang: Lang): Promise<string> {
 }
 
 async function main() {
-  const supportsRegenerate = process.argv.includes("--regenerate");
+  let cliOptions: CliOptions;
+  try {
+    cliOptions = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error("❌ Invalid arguments:");
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
   const lang = ((process.env.COMMIT_LANG || "en").toLowerCase() === "ja" ? "ja" : "en") as Lang;
+  const model = cliOptions.model ?? process.env.COMMIT_MODEL;
 
   let diff: string;
   try {
@@ -84,10 +152,10 @@ async function main() {
   try {
     while (true) {
       console.log(":robot: Generating commit message with Codex...\n");
-      const message = await generateMessage(diff, lang);
+      const message = await generateMessage(diff, lang, model);
       console.log(`  ${message}\n`);
 
-      const prompt = supportsRegenerate
+      const prompt = cliOptions.regenerate
         ? "Commit with this message? (y/n/r): "
         : "Commit with this message? (y/n): ";
 
@@ -99,7 +167,7 @@ async function main() {
         break;
       }
 
-      if (supportsRegenerate && answer === "r") {
+      if (cliOptions.regenerate && answer === "r") {
         continue;
       }
 
@@ -108,7 +176,7 @@ async function main() {
         break;
       }
 
-      console.log("Please answer y or n" + (supportsRegenerate ? " or r." : "."));
+      console.log("Please answer y or n" + (cliOptions.regenerate ? " or r." : "."));
     }
   } catch (error) {
     console.error("❌ Failed:");

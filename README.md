@@ -75,6 +75,24 @@ Commit with this message? (y/n):
 
 `--regenerate` を付けると確認時に `r` で再生成できます。
 
+```bash
+git-ai-commit --regenerate
+```
+
+---
+
+## Model selection
+
+Codexモデルは `--model` または環境変数 `COMMIT_MODEL` で指定できます。
+
+```bash
+git-ai-commit --model gpt-5
+# or
+COMMIT_MODEL=gpt-5-mini git-ai-commit
+```
+
+`--model` が優先されます。
+
 ---
 
 ## Git subcommand として使う（`git commit` は上書きしない）
