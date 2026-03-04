@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
+import { xai } from "@ai-sdk/xai";
+import { generateText } from "ai";
 import { Codex } from "@openai/codex-sdk";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -6,10 +11,14 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
 type Lang = "ja" | "en";
+type InferenceBackend = "codex" | "ai-sdk";
+type AiSdkProvider = "openai" | "anthropic" | "google" | "xai";
 
 type CliOptions = {
   regenerate: boolean;
   verbose: boolean;
+  backend?: InferenceBackend;
+  provider?: AiSdkProvider;
   model?: string;
   prompt?: string;
   promptFile?: string;
@@ -151,6 +160,44 @@ function parseArgs(argv: string[]): CliOptions {
       continue;
     }
 
+    if (arg === "--backend") {
+      const backend = argv[i + 1];
+      if (backend !== "codex" && backend !== "ai-sdk") {
+        throw new Error("--backend must be either 'codex' or 'ai-sdk'.");
+      }
+      options.backend = backend;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--backend=")) {
+      const backend = arg.split("=", 2)[1]?.trim();
+      if (backend !== "codex" && backend !== "ai-sdk") {
+        throw new Error("--backend must be either 'codex' or 'ai-sdk'.");
+      }
+      options.backend = backend;
+      continue;
+    }
+
+    if (arg === "--provider") {
+      const provider = argv[i + 1];
+      if (provider !== "openai" && provider !== "anthropic" && provider !== "google" && provider !== "xai") {
+        throw new Error("--provider must be one of: openai, anthropic, google, xai.");
+      }
+      options.provider = provider;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--provider=")) {
+      const provider = arg.split("=", 2)[1]?.trim();
+      if (provider !== "openai" && provider !== "anthropic" && provider !== "google" && provider !== "xai") {
+        throw new Error("--provider must be one of: openai, anthropic, google, xai.");
+      }
+      options.provider = provider;
+      continue;
+    }
+
     if (arg === "--model") {
       const model = argv[i + 1];
       if (!model || model.startsWith("-")) {
@@ -213,29 +260,35 @@ function parseArgs(argv: string[]): CliOptions {
         "git-ai-commit",
         "",
         "Usage:",
-        "  git-ai-commit [--regenerate] [--verbose] [--model <name>] [--prompt <text>|--prompt-file <path>] [-- <git commit args...>]",
+        "  git-ai-commit [--regenerate] [--verbose] [--backend <codex|ai-sdk>] [--provider <openai|anthropic|google|xai>] [--model <name>] [--prompt <text>|--prompt-file <path>] [-- <git commit args...>]",
         "",
         "Options:",
-        "  --regenerate      Enable 'r' to regenerate message at confirmation prompt.",
-        "  --verbose         Print resolved runtime settings.",
-        "  --model <name>        Codex model override (e.g. gpt-5, gpt-5-mini).",
-        "  --prompt <text>       Custom full prompt template.",
-        "  --prompt-file <path>      Load custom prompt template from file.",
-        "  --max-diff-chars <n>      Trim very large staged diffs before Codex call.",
-        "  --                    Pass following args through to git commit.",
+        "  --regenerate            Enable 'r' to regenerate message at confirmation prompt.",
+        "  --verbose               Print resolved runtime settings.",
+        "  --backend <name>        Inference backend: codex | ai-sdk.",
+        "  --provider <name>       ai-sdk provider: openai | anthropic | google | xai.",
+        "  --model <name>          Model override.",
+        "  --prompt <text>         Custom full prompt template.",
+        "  --prompt-file <path>    Load custom prompt template from file.",
+        "  --max-diff-chars <n>    Trim very large staged diffs before model call.",
+        "  --                      Pass following args through to git commit.",
         "",
         "Prompt template placeholders:",
         "  {{LANG}}   -> en | ja",
         "  {{DIFF}}   -> git diff --staged output",
         "",
         "Env:",
-        "  COMMIT_LANG          en|ja (default: en)",
-        "  COMMIT_MODEL         default model if --model is not provided",
-        "                       fallback default: gpt-5.1-codex-mini",
+        "  COMMIT_LANG            en|ja (default: en)",
+        "  COMMIT_BACKEND         codex|ai-sdk (default: codex)",
+        "  COMMIT_PROVIDER        openai|anthropic|google|xai (default: openai for ai-sdk)",
+        "  COMMIT_MODEL           default model if --model is not provided",
+        "                         defaults: codex=gpt-5.1-codex-mini, ai-sdk/openai=gpt-4o-mini",
+        "                         note: ai-sdk provider != openai requires --model or COMMIT_MODEL",
         "  COMMIT_PROMPT          custom prompt template text",
         "  COMMIT_PROMPT_FILE     path to custom prompt template file",
         "  COMMIT_MAX_DIFF_CHARS  max diff characters before truncation (default: 50000)",
-        "  CODEX_BIN              absolute path to codex binary (optional override)", 
+        "  CODEX_BIN              absolute path to codex binary (optional override)",
+        "  OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY / XAI_API_KEY", 
       ].join("\n"));
       process.exit(0);
     }
@@ -292,7 +345,46 @@ function resolveCodexPath(): string | undefined {
   return firstPath;
 }
 
-async function generateMessage(
+function parseBackend(value?: string): InferenceBackend | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (value === "codex" || value === "ai-sdk") {
+    return value;
+  }
+
+  throw new Error("COMMIT_BACKEND must be 'codex' or 'ai-sdk'.");
+}
+
+function parseProvider(value?: string): AiSdkProvider | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (value === "openai" || value === "anthropic" || value === "google" || value === "xai") {
+    return value;
+  }
+
+  throw new Error("COMMIT_PROVIDER must be one of: openai, anthropic, google, xai.");
+}
+
+function requiredApiKeyForProvider(provider: AiSdkProvider): string {
+  switch (provider) {
+    case "openai":
+      return "OPENAI_API_KEY";
+    case "anthropic":
+      return "ANTHROPIC_API_KEY";
+    case "google":
+      return "GOOGLE_GENERATIVE_AI_API_KEY";
+    case "xai":
+      return "XAI_API_KEY";
+    default:
+      throw new Error(`Unsupported ai-sdk provider: ${provider}`);
+  }
+}
+
+async function generateMessageWithCodex(
   diff: string,
   lang: Lang,
   model?: string,
@@ -311,6 +403,70 @@ async function generateMessage(
   return message;
 }
 
+function aiSdkModel(provider: AiSdkProvider, model: string) {
+  switch (provider) {
+    case "openai":
+      return openai(model);
+    case "anthropic":
+      return anthropic(model);
+    case "google":
+      return google(model);
+    case "xai":
+      return xai(model);
+    default:
+      throw new Error(`Unsupported ai-sdk provider: ${provider}`);
+  }
+}
+
+async function generateMessageWithAiSdk(
+  diff: string,
+  lang: Lang,
+  provider: AiSdkProvider,
+  model: string,
+  customPrompt?: string,
+): Promise<string> {
+  const prompt = buildPrompt(diff, lang, customPrompt);
+  const result = await generateText({
+    model: aiSdkModel(provider, model),
+    prompt,
+  });
+
+  const message = sanitizeMessage(result.text ?? "");
+  if (!message) {
+    throw new Error("ai-sdk provider returned an empty message.");
+  }
+
+  return message;
+}
+
+async function generateMessage(params: {
+  backend: InferenceBackend;
+  diff: string;
+  lang: Lang;
+  model: string;
+  customPrompt?: string;
+  codexPath?: string;
+  provider: AiSdkProvider;
+}): Promise<string> {
+  if (params.backend === "ai-sdk") {
+    return generateMessageWithAiSdk(
+      params.diff,
+      params.lang,
+      params.provider,
+      params.model,
+      params.customPrompt,
+    );
+  }
+
+  return generateMessageWithCodex(
+    params.diff,
+    params.lang,
+    params.model,
+    params.customPrompt,
+    params.codexPath,
+  );
+}
+
 async function main() {
   let cliOptions: CliOptions;
   try {
@@ -322,8 +478,50 @@ async function main() {
   }
 
   const lang = ((process.env.COMMIT_LANG || "en").toLowerCase() === "ja" ? "ja" : "en") as Lang;
-  const model = cliOptions.model ?? process.env.COMMIT_MODEL ?? "gpt-5.1-codex-mini";
-  const codexPath = resolveCodexPath();
+
+  let backend: InferenceBackend;
+  let provider: AiSdkProvider;
+  try {
+    backend = cliOptions.backend ?? parseBackend(process.env.COMMIT_BACKEND) ?? "codex";
+    provider = cliOptions.provider ?? parseProvider(process.env.COMMIT_PROVIDER) ?? "openai";
+  } catch (error) {
+    console.error("❌ Invalid backend/provider configuration:");
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
+  const modelFromInput = cliOptions.model ?? process.env.COMMIT_MODEL;
+
+  if (backend === "codex" && (cliOptions.provider || process.env.COMMIT_PROVIDER)) {
+    console.warn("⚠️ Provider is ignored when backend=codex.");
+  }
+
+  if (backend === "ai-sdk") {
+    const requiredKey = requiredApiKeyForProvider(provider);
+    if (!process.env[requiredKey]?.trim()) {
+      console.error(`❌ Missing API key for ai-sdk provider '${provider}': set ${requiredKey}.`);
+      process.exit(1);
+    }
+  }
+
+  const model = (() => {
+    if (modelFromInput) {
+      return modelFromInput;
+    }
+
+    if (backend === "codex") {
+      return "gpt-5.1-codex-mini";
+    }
+
+    if (provider === "openai") {
+      return "gpt-4o-mini";
+    }
+
+    console.error(`❌ Model is required for ai-sdk provider '${provider}'. Use --model or COMMIT_MODEL.`);
+    process.exit(1);
+  })();
+
+  const codexPath = backend === "codex" ? resolveCodexPath() : undefined;
 
   const envPrompt = process.env.COMMIT_PROMPT;
   const envPromptFile = process.env.COMMIT_PROMPT_FILE;
@@ -378,10 +576,12 @@ async function main() {
   }
 
   if (cliOptions.verbose) {
+    console.log(`ℹ️ backend=${backend}`);
+    console.log(`ℹ️ provider=${provider}`);
     console.log(`ℹ️ model=${model}`);
     console.log(`ℹ️ lang=${lang}`);
     console.log(`ℹ️ promptSource=${promptSource}`);
-    console.log(`ℹ️ codexPath=${codexPath ?? "(sdk default resolution)"}`);
+    console.log(`ℹ️ codexPath=${codexPath ?? "(not used)"}`);
   }
 
   let diff: string;
@@ -400,7 +600,7 @@ async function main() {
 
   const limited = limitDiff(diff, maxDiffChars);
   if (limited.truncated) {
-    console.warn(`⚠️ Large diff detected. Truncated ${limited.omittedChars} chars before sending to Codex.`);
+    console.warn(`⚠️ Large diff detected. Truncated ${limited.omittedChars} chars before sending to model.`);
   }
   diff = limited.diff;
 
@@ -408,8 +608,17 @@ async function main() {
 
   try {
     while (true) {
-      console.log("🤖 Generating commit message with Codex...\n");
-      const message = await generateMessage(diff, lang, model, customPrompt, codexPath);
+      const backendLabel = backend === "codex" ? "Codex" : `ai-sdk (${provider})`;
+      console.log(`🤖 Generating commit message with ${backendLabel}...\n`);
+      const message = await generateMessage({
+        backend,
+        provider,
+        diff,
+        lang,
+        model,
+        customPrompt,
+        codexPath,
+      });
       console.log(`  ${message}\n`);
 
       const prompt = cliOptions.regenerate
