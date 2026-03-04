@@ -17,8 +17,13 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.54",
+    "@ai-sdk/google": "^3.0.37",
+    "@ai-sdk/openai": "^3.0.39",
+    "@ai-sdk/xai": "^3.0.64",
     "@openai/codex": "^0.107.0",
-    "@openai/codex-sdk": "^0.107.0"
+    "@openai/codex-sdk": "^0.107.0",
+    "ai": "^6.0.111"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

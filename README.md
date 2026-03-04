@@ -1,15 +1,21 @@
 # git-ai-commit
 
-ステージ済み差分（`git diff --staged`）を Codex で要約し、
+ステージ済み差分（`git diff --staged`）を AI で要約し、
 Conventional Commits 形式の1行メッセージを提案してからコミットするCLIです。
+
+- `codex` バックエンド（`@openai/codex-sdk` / `codex login`）
+- `ai-sdk` バックエンド（OpenAI / Anthropic / Google / xAI のAPIキー）
 
 ---
 
 ## 1. Quick Start
 
 ### 必要条件
-- `codex login` 済み
-- `codex` コマンドが使えること（`@openai/codex`）
+- `codex` バックエンドを使う場合:
+  - `codex login` 済み
+  - `codex` コマンドが使えること（`@openai/codex`）
+- `ai-sdk` バックエンドを使う場合:
+  - 利用するプロバイダのAPIキー環境変数（後述）
 
 ### 推奨インストール（Bun）
 
@@ -59,15 +65,32 @@ git-ai-commit -- --amend --no-verify
 
 ## 3. 主要オプション
 
+### バックエンド指定（codex / ai-sdk）
+
+```bash
+# default: codex
+git-ai-commit --backend codex
+
+# ai-sdk backend
+git-ai-commit --backend ai-sdk --provider openai --model gpt-4o-mini
+```
+
+- `COMMIT_BACKEND=codex|ai-sdk`
+- `COMMIT_PROVIDER=openai|anthropic|google|xai`（ai-sdk時）
+
 ### モデル指定
 
 ```bash
-git-ai-commit --model gpt-5
-# or
-COMMIT_MODEL=gpt-5-mini git-ai-commit
+# codex backend
+git-ai-commit --backend codex --model gpt-5.1-codex-mini
+
+# ai-sdk backend
+git-ai-commit --backend ai-sdk --provider anthropic --model claude-3-5-sonnet-latest
 ```
 
-- デフォルト: `gpt-5.1-codex-mini`
+- デフォルト:
+  - codex: `gpt-5.1-codex-mini`
+  - ai-sdk: `gpt-4o-mini`
 - 優先順位: `--model` > `COMMIT_MODEL`
 
 ### 言語指定
@@ -78,10 +101,23 @@ COMMIT_LANG=ja git-ai-commit
 
 - `COMMIT_LANG=en|ja`（デフォルト: `en`）
 
-### Codex バイナリ位置を明示（トラブル時）
+### Codex バイナリ位置を明示（codexバックエンドのトラブル時）
 
 ```bash
-CODEX_BIN="$(which codex)" git-ai-commit --verbose
+CODEX_BIN="$(which codex)" git-ai-commit --backend codex --verbose
+```
+
+### ai-sdk 利用時の API キー環境変数
+
+- OpenAI: `OPENAI_API_KEY`
+- Anthropic: `ANTHROPIC_API_KEY`
+- Google: `GOOGLE_GENERATIVE_AI_API_KEY`
+- xAI: `XAI_API_KEY`
+
+例:
+
+```bash
+COMMIT_BACKEND=ai-sdk COMMIT_PROVIDER=openai OPENAI_API_KEY=... git-ai-commit
 ```
 
 ### 大きいdiffの上限
