@@ -77,6 +77,7 @@ git-ai-commit --backend ai-sdk --provider openai --model gpt-4o-mini
 
 - `COMMIT_BACKEND=codex|ai-sdk`
 - `COMMIT_PROVIDER=openai|anthropic|google|xai`（ai-sdk時）
+- `backend=codex` のとき `provider` は無視され、warning が表示されます
 
 ### モデル指定
 
@@ -90,7 +91,8 @@ git-ai-commit --backend ai-sdk --provider anthropic --model claude-3-5-sonnet-la
 
 - デフォルト:
   - codex: `gpt-5.1-codex-mini`
-  - ai-sdk: `gpt-4o-mini`
+  - ai-sdk/openai: `gpt-4o-mini`
+- `ai-sdk` で provider が `openai` 以外の場合、`--model`（または `COMMIT_MODEL`）必須
 - 優先順位: `--model` > `COMMIT_MODEL`
 
 ### 言語指定
@@ -113,6 +115,8 @@ CODEX_BIN="$(which codex)" git-ai-commit --backend codex --verbose
 - Anthropic: `ANTHROPIC_API_KEY`
 - Google: `GOOGLE_GENERATIVE_AI_API_KEY`
 - xAI: `XAI_API_KEY`
+
+`backend=ai-sdk` 実行時、providerに対応するキーが未設定なら実行前にエラーで止まります。
 
 例:
 

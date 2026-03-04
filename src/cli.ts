@@ -282,7 +282,8 @@ function parseArgs(argv: string[]): CliOptions {
         "  COMMIT_BACKEND         codex|ai-sdk (default: codex)",
         "  COMMIT_PROVIDER        openai|anthropic|google|xai (default: openai for ai-sdk)",
         "  COMMIT_MODEL           default model if --model is not provided",
-        "                         defaults: codex=gpt-5.1-codex-mini, ai-sdk=gpt-4o-mini",
+        "                         defaults: codex=gpt-5.1-codex-mini, ai-sdk/openai=gpt-4o-mini",
+        "                         note: ai-sdk provider != openai requires --model or COMMIT_MODEL",
         "  COMMIT_PROMPT          custom prompt template text",
         "  COMMIT_PROMPT_FILE     path to custom prompt template file",
         "  COMMIT_MAX_DIFF_CHARS  max diff characters before truncation (default: 50000)",
@@ -366,6 +367,21 @@ function parseProvider(value?: string): AiSdkProvider | undefined {
   }
 
   throw new Error("COMMIT_PROVIDER must be one of: openai, anthropic, google, xai.");
+}
+
+function requiredApiKeyForProvider(provider: AiSdkProvider): string {
+  switch (provider) {
+    case "openai":
+      return "OPENAI_API_KEY";
+    case "anthropic":
+      return "ANTHROPIC_API_KEY";
+    case "google":
+      return "GOOGLE_GENERATIVE_AI_API_KEY";
+    case "xai":
+      return "XAI_API_KEY";
+    default:
+      throw new Error(`Unsupported ai-sdk provider: ${provider}`);
+  }
 }
 
 async function generateMessageWithCodex(
@@ -474,7 +490,37 @@ async function main() {
     process.exit(1);
   }
 
-  const model = cliOptions.model ?? process.env.COMMIT_MODEL ?? (backend === "codex" ? "gpt-5.1-codex-mini" : "gpt-4o-mini");
+  const modelFromInput = cliOptions.model ?? process.env.COMMIT_MODEL;
+
+  if (backend === "codex" && (cliOptions.provider || process.env.COMMIT_PROVIDER)) {
+    console.warn("⚠️ Provider is ignored when backend=codex.");
+  }
+
+  if (backend === "ai-sdk") {
+    const requiredKey = requiredApiKeyForProvider(provider);
+    if (!process.env[requiredKey]?.trim()) {
+      console.error(`❌ Missing API key for ai-sdk provider '${provider}': set ${requiredKey}.`);
+      process.exit(1);
+    }
+  }
+
+  const model = (() => {
+    if (modelFromInput) {
+      return modelFromInput;
+    }
+
+    if (backend === "codex") {
+      return "gpt-5.1-codex-mini";
+    }
+
+    if (provider === "openai") {
+      return "gpt-4o-mini";
+    }
+
+    console.error(`❌ Model is required for ai-sdk provider '${provider}'. Use --model or COMMIT_MODEL.`);
+    process.exit(1);
+  })();
+
   const codexPath = backend === "codex" ? resolveCodexPath() : undefined;
 
   const envPrompt = process.env.COMMIT_PROMPT;
@@ -554,7 +600,7 @@ async function main() {
 
   const limited = limitDiff(diff, maxDiffChars);
   if (limited.truncated) {
-    console.warn(`⚠️ Large diff detected. Truncated ${limited.omittedChars} chars before sending to Codex.`);
+    console.warn(`⚠️ Large diff detected. Truncated ${limited.omittedChars} chars before sending to model.`);
   }
   diff = limited.diff;
 
@@ -562,7 +608,8 @@ async function main() {
 
   try {
     while (true) {
-      console.log("🤖 Generating commit message with Codex...\n");
+      const backendLabel = backend === "codex" ? "Codex" : `ai-sdk (${provider})`;
+      console.log(`🤖 Generating commit message with ${backendLabel}...\n`);
       const message = await generateMessage({
         backend,
         provider,
